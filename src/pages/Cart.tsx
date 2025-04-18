@@ -1,8 +1,8 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppContext } from "@/context/AppContext";
-import { Minus, Plus, Trash2, Clock } from "lucide-react";
+import { Minus, Plus, Trash2, Clock, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -16,6 +16,9 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import { toast } from "@/hooks/use-toast";
 
 const Cart = () => {
   const navigate = useNavigate();
@@ -33,6 +36,7 @@ const Cart = () => {
   const [showTimeDialog, setShowTimeDialog] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [instructions, setInstructions] = useState("");
+  const [timeSlotWarning, setTimeSlotWarning] = useState(false);
 
   // Calculate total
   const subtotal = cartItems.reduce(
@@ -56,14 +60,42 @@ const Cart = () => {
 
   const handleProceedToCheckout = () => {
     if (cartItems.length === 0) return;
+    setTimeSlotWarning(false);
     setShowTimeDialog(true);
   };
 
   const handlePlaceOrder = () => {
+    // Verify the time slot is still available
+    if (!selectedTimeSlot) {
+      toast({
+        title: "No Time Selected",
+        description: "Please select a pickup time before placing your order.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const currentSlot = timeSlots.find(slot => slot.id === selectedTimeSlot.id);
+    if (!currentSlot || currentSlot.currentOrders >= currentSlot.maxOrders) {
+      // Show warning if time slot is full
+      setTimeSlotWarning(true);
+      toast({
+        title: "Time Slot Full",
+        description: "The selected time slot is no longer available. Please choose another time.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const orderId = placeOrder();
     if (orderId) {
       navigate(`/orders/${orderId}`);
     }
+  };
+
+  const handleChangePickupTime = () => {
+    setTimeSlotWarning(false);
+    setShowTimeDialog(true);
   };
 
   return (
@@ -79,6 +111,37 @@ const Cart = () => {
       ) : (
         <>
           <div className="space-y-4 mb-8">
+            {selectedTimeSlot && (
+              <Card className="bg-purple-50">
+                <CardContent className="pt-6 pb-4">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center">
+                      <Clock className="h-5 w-5 text-purple-600 mr-2" />
+                      <div>
+                        <p className="font-medium">Pickup Time: {selectedTimeSlot.time}</p>
+                        <p className="text-sm text-gray-600">
+                          {selectedTimeSlot.maxOrders - selectedTimeSlot.currentOrders} spots left
+                        </p>
+                      </div>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={handleChangePickupTime}
+                    >
+                      Change Time
+                    </Button>
+                  </div>
+                  <div className="mt-3">
+                    <Progress 
+                      value={(selectedTimeSlot.currentOrders / selectedTimeSlot.maxOrders) * 100} 
+                      className="h-2"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {cartItems.map((item) => (
               <Card key={item.menuItem.id}>
                 <CardHeader className="py-4 px-6">
@@ -169,9 +232,15 @@ const Cart = () => {
               <Button variant="outline" onClick={() => navigate('/')}>
                 Continue Shopping
               </Button>
-              <Button onClick={handleProceedToCheckout}>
-                Proceed to Checkout
-              </Button>
+              {!selectedTimeSlot ? (
+                <Button onClick={handleProceedToCheckout}>
+                  Select Pickup Time
+                </Button>
+              ) : (
+                <Button onClick={handlePlaceOrder}>
+                  Place Order
+                </Button>
+              )}
             </CardFooter>
           </Card>
         </>
@@ -213,6 +282,17 @@ const Cart = () => {
               Choose a time to pick up your order.
             </DialogDescription>
           </DialogHeader>
+          
+          {timeSlotWarning && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Time Slot No Longer Available</AlertTitle>
+              <AlertDescription>
+                The previously selected time slot is now full. Please select a different time.
+              </AlertDescription>
+            </Alert>
+          )}
+          
           <div className="py-4">
             <RadioGroup 
               defaultValue={selectedTimeSlot?.id} 
@@ -220,32 +300,41 @@ const Cart = () => {
             >
               {timeSlots.map((slot) => {
                 const isFull = slot.currentOrders >= slot.maxOrders;
+                const percentFull = (slot.currentOrders / slot.maxOrders) * 100;
                 return (
                   <div 
                     key={slot.id} 
-                    className={`mb-3 p-3 border rounded-md flex items-center justify-between ${
+                    className={`mb-3 p-3 border rounded-md ${
                       isFull ? 'bg-gray-100 opacity-60' : 'hover:border-purple-500 cursor-pointer'
                     }`}
                   >
-                    <div className="flex items-center">
-                      <RadioGroupItem 
-                        value={slot.id} 
-                        id={`time-${slot.id}`} 
-                        disabled={isFull}
-                      />
-                      <Label 
-                        htmlFor={`time-${slot.id}`} 
-                        className="ml-2 flex items-center"
-                      >
-                        <Clock className="h-4 w-4 mr-2" /> {slot.time}
-                      </Label>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <RadioGroupItem 
+                          value={slot.id} 
+                          id={`time-${slot.id}`} 
+                          disabled={isFull}
+                        />
+                        <Label 
+                          htmlFor={`time-${slot.id}`} 
+                          className="ml-2 flex items-center"
+                        >
+                          <Clock className="h-4 w-4 mr-2" /> {slot.time}
+                        </Label>
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {isFull ? (
+                          <span className="text-red-500">Full</span>
+                        ) : (
+                          <span>{slot.maxOrders - slot.currentOrders} spots left</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-sm text-gray-500">
-                      {isFull ? (
-                        <span className="text-red-500">Full</span>
-                      ) : (
-                        <span>{slot.maxOrders - slot.currentOrders} spots left</span>
-                      )}
+                    <div className="mt-2">
+                      <Progress 
+                        value={percentFull} 
+                        className="h-1"
+                      />
                     </div>
                   </div>
                 );
@@ -260,10 +349,10 @@ const Cart = () => {
               Cancel
             </Button>
             <Button 
-              onClick={handlePlaceOrder}
+              onClick={() => setShowTimeDialog(false)}
               disabled={!selectedTimeSlot}
             >
-              Place Order
+              Confirm Time
             </Button>
           </DialogFooter>
         </DialogContent>

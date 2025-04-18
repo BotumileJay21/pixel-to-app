@@ -136,6 +136,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
+    // Prompt user to select a time slot if they haven't already
+    if (!selectedTimeSlot) {
+      toast({
+        title: "Select Pickup Time",
+        description: "Remember to select a pickup time before placing your order.",
+      });
+    }
+
     toast({
       title: "Added to Cart",
       description: `${item.name} added to your cart`
@@ -195,6 +203,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
       setSelectedTimeSlot(slot);
+      
+      toast({
+        title: "Pickup Time Selected",
+        description: `Your order will be ready for pickup at ${slot.time}`,
+      });
     }
   };
 
@@ -213,6 +226,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast({
         title: "No Time Selected",
         description: "Please select a pickup time before placing your order.",
+        variant: "destructive"
+      });
+      return null;
+    }
+    
+    // Check if the selected time slot is still available
+    const currentSlot = timeSlots.find(slot => slot.id === selectedTimeSlot.id);
+    if (!currentSlot || currentSlot.currentOrders >= currentSlot.maxOrders) {
+      toast({
+        title: "Time Slot Full",
+        description: "The selected time slot is no longer available. Please choose another time.",
         variant: "destructive"
       });
       return null;
@@ -279,10 +303,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       )
     );
 
+    const updatedOrder = orders.find(o => o.id === orderId);
+    
     toast({
       title: "Order Updated",
-      description: `Order #${orders.find(o => o.id === orderId)?.orderNumber} status changed to ${status}`,
+      description: `Order #${updatedOrder?.orderNumber} status changed to ${status}`,
     });
+    
+    // In a real app, we'd notify the user here through WebSockets or push notifications
   };
 
   // Toggle between admin and user modes (for demo purposes)

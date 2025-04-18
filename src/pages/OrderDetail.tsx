@@ -6,12 +6,15 @@ import {
   ArrowLeft, 
   Clock, 
   PackageCheck, 
-  CheckCircle2 
+  CheckCircle2, 
+  Bell
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Order } from "@/types";
+import { Progress } from "@/components/ui/progress";
+import { toast } from "@/hooks/use-toast";
+import { Order, OrderStatus } from "@/types";
 
 const StatusStep = ({ status, current, label, icon }: 
   { status: string, current: string, label: string, icon: React.ReactNode }) => {
@@ -20,13 +23,14 @@ const StatusStep = ({ status, current, label, icon }:
   const statusIndex = statusOrder.indexOf(status);
   
   const isActive = currentIndex >= statusIndex;
+  const isCurrentStep = current === status;
   
   return (
     <div className={`flex flex-col items-center ${isActive ? 'text-purple-600' : 'text-gray-400'}`}>
-      <div className={`rounded-full p-3 ${isActive ? 'bg-purple-100' : 'bg-gray-100'}`}>
+      <div className={`rounded-full p-3 ${isCurrentStep ? 'bg-purple-600 text-white' : (isActive ? 'bg-purple-100' : 'bg-gray-100')}`}>
         {icon}
       </div>
-      <span className="mt-2 text-sm">{label}</span>
+      <span className="mt-2 text-sm font-medium">{label}</span>
     </div>
   );
 };
@@ -34,15 +38,50 @@ const StatusStep = ({ status, current, label, icon }:
 const OrderDetail = () => {
   const { orderId } = useParams();
   const navigate = useNavigate();
-  const { getOrderById, currentUser, updateOrderStatus } = useAppContext();
+  const { getOrderById, currentUser, updateOrderStatus, orders } = useAppContext();
   const [order, setOrder] = useState<Order | undefined>(undefined);
+  const [prevStatus, setPrevStatus] = useState<OrderStatus | null>(null);
   
+  // Poll for order updates (simulate real-time updates)
   useEffect(() => {
     if (orderId) {
       const foundOrder = getOrderById(orderId);
-      setOrder(foundOrder);
+      
+      // Check if status has changed since last check
+      if (foundOrder && prevStatus && foundOrder.status !== prevStatus && foundOrder.status === 'Ready for Pickup') {
+        toast({
+          title: "Order Ready for Pickup!",
+          description: `Your order #${foundOrder.orderNumber} is now ready to be picked up.`,
+        });
+      }
+      
+      // Update local state
+      if (foundOrder) {
+        setPrevStatus(foundOrder.status);
+        setOrder(foundOrder);
+      }
     }
-  }, [orderId, getOrderById]);
+    
+    // Set up polling for status updates (simulating real-time)
+    const interval = setInterval(() => {
+      if (orderId) {
+        const updatedOrder = getOrderById(orderId);
+        if (updatedOrder && updatedOrder.status !== order?.status) {
+          setOrder(updatedOrder);
+          
+          // Show notification when order becomes ready
+          if (updatedOrder.status === 'Ready for Pickup' && order?.status === 'Preparing') {
+            toast({
+              title: "Order Ready for Pickup!",
+              description: `Your order #${updatedOrder.orderNumber} is now ready to be picked up.`,
+            });
+          }
+        }
+      }
+    }, 3000); // Check every 3 seconds
+    
+    return () => clearInterval(interval);
+  }, [orderId, getOrderById, order?.status]);
 
   if (!order) {
     return (
@@ -73,6 +112,16 @@ const OrderDetail = () => {
     }).format(date);
   };
 
+  // Get progress percentage based on order status
+  const getProgressPercentage = (status: OrderStatus) => {
+    switch (status) {
+      case 'Preparing': return 33;
+      case 'Ready for Pickup': return 66;
+      case 'Completed': return 100;
+      default: return 0;
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-6">
@@ -95,7 +144,11 @@ const OrderDetail = () => {
             </CardHeader>
             <CardContent>
               <div className="py-4">
-                <div className="flex justify-between mb-6">
+                <div className="mb-4">
+                  <Progress value={getProgressPercentage(order.status)} className="h-2" />
+                </div>
+                
+                <div className="flex justify-between mb-6 mt-6">
                   <StatusStep 
                     status="Preparing" 
                     current={order.status} 
@@ -119,12 +172,21 @@ const OrderDetail = () => {
                 </div>
                 
                 <div className="text-center mt-4">
-                  <Badge className="px-3 py-1 text-sm">
+                  <Badge className={`px-3 py-1 text-sm ${
+                    order.status === 'Preparing' ? 'bg-yellow-100 text-yellow-800' :
+                    order.status === 'Ready for Pickup' ? 'bg-blue-100 text-blue-800' :
+                    'bg-green-100 text-green-800'
+                  }`}>
+                    {order.status === 'Ready for Pickup' && <Bell className="h-3 w-3 mr-1 inline animate-pulse" />}
                     {order.status}
                   </Badge>
                   <p className="mt-2 text-gray-600">
-                    {order.status === 'Preparing' && "Your order is being prepared."}
-                    {order.status === 'Ready for Pickup' && "Your order is ready! Head to the pickup counter."}
+                    {order.status === 'Preparing' && "Your order is being prepared. We'll notify you when it's ready."}
+                    {order.status === 'Ready for Pickup' && (
+                      <span className="font-medium text-blue-700">
+                        Your order is ready! Head to the pickup counter with order #{order.orderNumber}.
+                      </span>
+                    )}
                     {order.status === 'Completed' && "Your order has been picked up. Enjoy!"}
                   </p>
                 </div>
