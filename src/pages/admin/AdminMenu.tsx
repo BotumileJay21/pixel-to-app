@@ -8,21 +8,31 @@ import {
   Trash2, 
   Save, 
   X, 
-  Search 
+  Search,
+  Upload
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { 
   Card, 
   CardContent, 
-  CardDescription, 
-  CardFooter, 
   CardHeader, 
-  CardTitle 
+  CardTitle, 
+  CardDescription,
+  CardFooter 
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { MenuItem } from "@/types";
 
 const AdminMenu = () => {
@@ -31,8 +41,8 @@ const AdminMenu = () => {
   const [items, setItems] = useState<MenuItem[]>(menuItems);
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isAddingItem, setIsAddingItem] = useState(false);
   
-  // Simulated form state for editing or adding items
   const [formState, setFormState] = useState<MenuItem>({
     id: "",
     name: "",
@@ -64,7 +74,6 @@ const AdminMenu = () => {
   };
 
   const handleSaveItem = () => {
-    // In a real app, this would make an API call
     setItems(prevItems => 
       prevItems.map(item => 
         item.id === editingItem ? { ...formState } : item
@@ -73,8 +82,26 @@ const AdminMenu = () => {
     setEditingItem(null);
   };
 
+  const handleAddNewItem = () => {
+    const newItem: MenuItem = {
+      ...formState,
+      id: `new-${Date.now()}`,
+      available: true
+    };
+    
+    setItems(prevItems => [...prevItems, newItem]);
+    setFormState({
+      id: "",
+      name: "",
+      description: "",
+      price: 0,
+      category: "",
+      available: true
+    });
+    setIsAddingItem(false);
+  };
+
   const handleToggleAvailability = (itemId: string) => {
-    // In a real app, this would make an API call
     setItems(prevItems => 
       prevItems.map(item => 
         item.id === itemId ? { ...item, available: !item.available } : item
@@ -82,23 +109,7 @@ const AdminMenu = () => {
     );
   };
 
-  const handleAddItem = () => {
-    // In a real app, this would make an API call and get a proper ID
-    const newItem: MenuItem = {
-      id: `new-${Date.now()}`,
-      name: "New Item",
-      description: "Description of the new item",
-      price: 0,
-      category: "Other",
-      available: true
-    };
-    
-    setItems(prevItems => [...prevItems, newItem]);
-    handleEditItem(newItem);
-  };
-
   const handleDeleteItem = (itemId: string) => {
-    // In a real app, this would make an API call
     setItems(prevItems => prevItems.filter(item => item.id !== itemId));
     if (editingItem === itemId) {
       setEditingItem(null);
@@ -122,7 +133,7 @@ const AdminMenu = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-6xl mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Manage Menu</h1>
         <div className="flex gap-2">
@@ -136,15 +147,79 @@ const AdminMenu = () => {
               onChange={e => setSearchTerm(e.target.value)}
             />
           </div>
-          <Button onClick={handleAddItem}>
-            <PlusCircle className="h-4 w-4 mr-1" /> Add Item
-          </Button>
+          <Dialog open={isAddingItem} onOpenChange={setIsAddingItem}>
+            <DialogTrigger asChild>
+              <Button>
+                <PlusCircle className="h-4 w-4 mr-1" /> Add Item
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Add New Menu Item</DialogTitle>
+                <DialogDescription>
+                  Fill in the details for the new menu item.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Name</Label>
+                  <Input
+                    id="name"
+                    name="name"
+                    value={formState.name}
+                    onChange={handleFormChange}
+                    placeholder="Item name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="category">Category</Label>
+                  <Input
+                    id="category"
+                    name="category"
+                    value={formState.category}
+                    onChange={handleFormChange}
+                    placeholder="Category"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    name="description"
+                    value={formState.description}
+                    onChange={handleFormChange}
+                    placeholder="Item description"
+                    rows={3}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="price">Price (R)</Label>
+                  <Input
+                    id="price"
+                    name="price"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formState.price}
+                    onChange={handleFormChange}
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddingItem(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleAddNewItem}>Add Item</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
       <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         {filteredItems.map(item => (
-          <Card key={item.id}>
+          <Card key={item.id} className="hover:shadow-lg transition-shadow duration-200">
             {editingItem === item.id ? (
               // Edit mode
               <>
@@ -238,7 +313,7 @@ const AdminMenu = () => {
                 </CardHeader>
                 <CardContent>
                   <p className="text-gray-700 text-sm mb-2">{item.description}</p>
-                  <p className="font-semibold">${item.price.toFixed(2)}</p>
+                  <p className="font-semibold">R{item.price.toFixed(2)}</p>
                 </CardContent>
                 <CardFooter className="flex justify-between">
                   <Button 
@@ -272,7 +347,7 @@ const AdminMenu = () => {
               : "Start by adding your first menu item"}
           </p>
           {!searchTerm && (
-            <Button onClick={handleAddItem}>
+            <Button onClick={() => setIsAddingItem(true)}>
               <PlusCircle className="h-4 w-4 mr-1" /> Add First Item
             </Button>
           )}
