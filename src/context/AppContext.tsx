@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { MenuItem, CartItem, TimeSlot, Order, User, OrderStatus } from '@/types';
 import { toast } from "@/hooks/use-toast";
@@ -79,6 +78,7 @@ type AppContextType = {
   orders: Order[];
   selectedTimeSlot: TimeSlot | null;
   currentUser: User;
+  notifications: { id: string; message: string; read: boolean; timestamp: string; orderId?: string }[];
   
   // Cart functions
   addToCart: (item: MenuItem, quantity?: number) => void;
@@ -97,6 +97,10 @@ type AppContextType = {
   
   // Admin functions
   toggleAdminMode: () => void;
+  
+  // Notification functions
+  markNotificationAsRead: (notificationId: string) => void;
+  clearNotifications: () => void;
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -108,6 +112,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
   const [currentUser, setCurrentUser] = useState<User>(initialUser);
+  const [notifications, setNotifications] = useState<
+    { id: string; message: string; read: boolean; timestamp: string; orderId?: string }[]
+  >([]);
 
   // Add item to cart
   const addToCart = (item: MenuItem, quantity: number = 1) => {
@@ -211,6 +218,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // Mark notification as read
+  const markNotificationAsRead = (notificationId: string) => {
+    setNotifications(prev => 
+      prev.map(notification => 
+        notification.id === notificationId 
+          ? { ...notification, read: true } 
+          : notification
+      )
+    );
+  };
+
+  // Clear all notifications
+  const clearNotifications = () => {
+    setNotifications([]);
+  };
+
   // Place order
   const placeOrder = (): string | null => {
     if (cartItems.length === 0) {
@@ -268,6 +291,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       )
     );
 
+    // Add order placed notification
+    addNotification(`Your order #${orderNumber} has been placed and is being prepared.`, newOrder.id);
+
     // Clear cart after successful order
     clearCart();
 
@@ -277,6 +303,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     return newOrder.id;
+  };
+
+  // Add a notification
+  const addNotification = (message: string, orderId?: string) => {
+    const newNotification = {
+      id: `notification-${Date.now()}`,
+      message,
+      read: false,
+      timestamp: new Date().toISOString(),
+      orderId
+    };
+    
+    setNotifications(prev => [newNotification, ...prev]);
   };
 
   // Get order by ID
@@ -310,7 +349,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       description: `Order #${updatedOrder?.orderNumber} status changed to ${status}`,
     });
     
-    // In a real app, we'd notify the user here through WebSockets or push notifications
+    // Add notification for the user when order status changes
+    if (updatedOrder) {
+      if (status === 'Ready for Pickup') {
+        addNotification(`Your order #${updatedOrder.orderNumber} is now ready for pickup!`, orderId);
+      } else if (status === 'Completed') {
+        addNotification(`Your order #${updatedOrder.orderNumber} has been completed. Enjoy!`, orderId);
+      }
+    }
   };
 
   // Toggle between admin and user modes (for demo purposes)
@@ -335,6 +381,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         orders,
         selectedTimeSlot,
         currentUser,
+        notifications,
         addToCart,
         removeFromCart,
         updateCartItemQuantity,
@@ -345,6 +392,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         getOrderById,
         updateOrderStatus,
         toggleAdminMode,
+        markNotificationAsRead,
+        clearNotifications,
       }}
     >
       {children}

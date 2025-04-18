@@ -40,3 +40,11 @@ export type User = {
   email: string;
   isAdmin: boolean;
 };
+
+export type Notification = {
+  id: string;
+  message: string;
+  read: boolean;
+  timestamp: string;
+  orderId?: string;
+};
